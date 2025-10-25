@@ -8,8 +8,10 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // 🔗 Use your deployed FastAPI backend URL here
+        target: 'https://college-finder-project-xhd3.vercel.app',
         changeOrigin: true,
+        secure: true, // ensures HTTPS backend connections
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
@@ -22,7 +24,7 @@ export default defineConfig({
             console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
           });
         },
-      }
-    }
-  }
+      },
+    },
+  },
 })
