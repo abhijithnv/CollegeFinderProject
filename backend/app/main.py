@@ -21,7 +21,7 @@ app = FastAPI(
 origins = [
     # "http://localhost:3000",   # local dev
     # "http://127.0.0.1:3000",   # local dev alternate
-    "https://college-finder-project-hbx2.vercel.app"
+    "https://collegefinder44.netlify.app"
     # deployed frontend
 ]
 
