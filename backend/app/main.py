@@ -52,7 +52,7 @@ def on_startup():
 # ----------------------------
 @app.get("/")
 def root():
-    return {"message": "Welcome to the Users Auth & College APIs"}
+    return {"message": "Welcome All to the Users Auth & College APIs"}
 
 # ----------------------------
 # Run the app locally
