@@ -19,10 +19,9 @@ app = FastAPI(
 # CORS Middleware
 # ----------------------------
 origins = [
-    "http://localhost:3000",   # React dev server
-    "http://127.0.0.1:3000",   # alternate localhost
-    # Add production domain here later
-    "https://yourfrontenddomain.com"
+    "http://localhost:3000",   # local dev
+    "http://127.0.0.1:3000",   # local dev alternate
+    "https://college-finder-project-qiwf.vercel.app"  # deployed frontend
 ]
 
 app.add_middleware(
@@ -52,11 +51,11 @@ def on_startup():
 # ----------------------------
 @app.get("/")
 def root():
-    return {"message": "Welcome to the User Auth & College API"}
+    return {"message": "Welcome to the Users Auth & College APIs"}
 
 # ----------------------------
-# Run the app (for hosting)
+# Run the app locally
 # ----------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # same as process.env.PORT || 8000
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run("app.main:app", host="0.0.0.0", port=port)
