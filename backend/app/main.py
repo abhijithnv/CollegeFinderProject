@@ -19,8 +19,8 @@ app = FastAPI(
 # CORS Middleware
 # ----------------------------
 origins = [
-    "http://localhost:3000",   # local dev
-    "http://127.0.0.1:3000",   # local dev alternate
+    # "http://localhost:3000",   # local dev
+    # "http://127.0.0.1:3000",   # local dev alternate
     "https://college-finder-project-hbx2.vercel.app"
     # deployed frontend
 ]
