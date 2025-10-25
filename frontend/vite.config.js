@@ -9,7 +9,7 @@ export default defineConfig({
     proxy: {
       '/api': {
         // 🔗 Use your deployed FastAPI backend URL here
-        target: 'https://college-finder-project-xhd3.vercel.app',
+        target: 'https://college-finder-project-kfp4.vercel.app',
         changeOrigin: true,
         secure: true, // ensures HTTPS backend connections
         rewrite: (path) => path.replace(/^\/api/, ''),
