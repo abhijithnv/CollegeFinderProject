@@ -18,12 +18,7 @@ app = FastAPI(
 # ----------------------------
 # CORS Middleware
 # ----------------------------
-origins = [
-    # "http://localhost:3000",   # local dev
-    # "http://127.0.0.1:3000",   # local dev alternate
-    "https://collegefinder44.netlify.app"
-    # deployed frontend
-]
+origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
 
 app.add_middleware(
     CORSMiddleware,

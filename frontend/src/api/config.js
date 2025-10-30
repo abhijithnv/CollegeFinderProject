@@ -1,4 +1,4 @@
 // config.js
 export const API_CONFIG = {
-  BASE_URL: 'https://college-finder-project-xhd3.vercel.app'
-}
+  BASE_URL: import.meta.env.VITE_API_BASE_URL
+};
