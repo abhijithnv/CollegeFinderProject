@@ -1,12 +1,11 @@
 import React, { useState } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { FiEye, FiEyeOff } from 'react-icons/fi'
 import { loginUser } from '../api/login'
 import { ADMIN_CREDENTIALS } from '../api/admin'
 
 const SignIn = () => {
   const navigate = useNavigate()
-  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -17,8 +16,6 @@ const SignIn = () => {
   const handleAdminLogin = async () => {
     setEmail(ADMIN_CREDENTIALS.email)
     setPassword(ADMIN_CREDENTIALS.password)
-    
-    // Auto-submit after setting credentials
     setTimeout(() => {
       const form = document.querySelector('form')
       if (form) {
@@ -49,36 +46,41 @@ const SignIn = () => {
       password: password.trim(),
     }
 
+    // ✅ Step 1: Frontend-only admin login
+    if (
+      credentials.email === ADMIN_CREDENTIALS.email &&
+      credentials.password === ADMIN_CREDENTIALS.password
+    ) {
+      localStorage.setItem('user', JSON.stringify({
+        email: ADMIN_CREDENTIALS.email,
+        username: 'Admin',
+        role: 'admin'
+      }))
+      console.log('✅ Admin login successful (frontend only)')
+      navigate('/admin/colleges')
+      setIsLoading(false)
+      return
+    }
+
+    // ✅ Step 2: Normal user login via backend
     try {
       const response = await loginUser(credentials)
-      
-      // Store user data in localStorage
+
       localStorage.setItem('user', JSON.stringify({
         email: response.email || credentials.email,
-        username: response.username || 'Admin',
-        role: response.role,
-        message: response.message
+        username: response.username || 'User',
+        role: response.role || 'user'
       }))
-      
-      console.log('Login successful:', response)
-      
-      // Redirect based on role
-      if (response.role === 'admin') {
-        console.log('Admin login successful, redirecting to admin panel...')
-        navigate('/admin/colleges')
-      } else {
-        console.log('User login successful, redirecting to college listing...')
-        navigate('/colleges')
-      }
+
+      console.log('User login successful:', response)
+      navigate('/colleges')
     } catch (error) {
       console.error('Login error:', error)
-      
+
       if (error.type === 'NETWORK_ERROR') {
-        setError('Network Error: Unable to connect to server. Please check your connection.')
+        setError('Network Error: Unable to connect to server.')
       } else if (error.status === 401) {
-        setError('Invalid email or password. Please try again.')
-      } else if (error.status === 400) {
-        setError(error.message || 'Login failed. Please check your information.')
+        setError('Invalid email or password.')
       } else {
         setError(error.message || 'Login failed. Please try again.')
       }
@@ -157,5 +159,3 @@ const SignIn = () => {
 }
 
 export default SignIn
-
-
