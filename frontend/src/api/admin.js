@@ -4,7 +4,7 @@ import { API_CONFIG } from './config.js'
  * Admin credentials for testing
  */
 export const ADMIN_CREDENTIALS = {
-  email: 'Admin88@gmail.com',
+  email: 'admin88@gmail.com',
   password: 'Admin@3347'
 }
 
