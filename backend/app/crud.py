@@ -13,6 +13,15 @@ router = APIRouter(prefix="/college", tags=["Colleges"])
 
 
 
+from fastapi import APIRouter, Form, File, UploadFile, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import Optional
+from app import models, schemas
+from app.database import get_db
+import json, requests
+
+router = APIRouter()
+
 @router.post("/", response_model=schemas.CollegeOut)
 async def add_college(
     college_name: str = Form(...),
@@ -20,29 +29,31 @@ async def add_college(
     about: Optional[str] = Form(None),
     price_range: Optional[str] = Form(None),
     stream: Optional[str] = Form(None),
-    courses: Optional[str] = Form(None),  # JSON string array of courses with their own category
+    courses: Optional[str] = Form(None),  # JSON string of course objects
     college_image_file: UploadFile = File(None),
     college_image_url: str = Form(None),
     db: Session = Depends(get_db),
 ):
     # -----------------------------
-    # Handle college image
+    # Handle College Image
     # -----------------------------
     image_data = None
     image_mime = None
+
     if college_image_file:
         image_data = await college_image_file.read()
         image_mime = college_image_file.content_type
     elif college_image_url:
-        import requests
-        resp = requests.get(college_image_url)
-        if resp.status_code != 200:
+        try:
+            resp = requests.get(college_image_url)
+            resp.raise_for_status()
+            image_data = resp.content
+            image_mime = resp.headers.get("Content-Type", "image/jpeg")
+        except Exception:
             raise HTTPException(status_code=400, detail="Unable to fetch image from URL.")
-        image_data = resp.content
-        image_mime = resp.headers.get("Content-Type", "image/jpeg")
 
     # -----------------------------
-    # Create College
+    # Create College Entry
     # -----------------------------
     new_college = models.College(
         college_name=college_name,
@@ -57,25 +68,28 @@ async def add_college(
     db.commit()
     db.refresh(new_college)
 
-
-
-
-
-
     # -----------------------------
-    # Add multiple courses (if any)
+    # Handle Courses (if provided)
     # -----------------------------
     if courses:
-        import json
         try:
             courses_data = json.loads(courses)
+            if not isinstance(courses_data, list):
+                raise HTTPException(status_code=400, detail="'courses' must be a JSON array.")
         except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Invalid 'courses' format. Must be JSON array.")
+            raise HTTPException(status_code=400, detail="Invalid JSON format for 'courses'.")
 
         for course in courses_data:
             course_name = course.get("course_name")
             course_about = course.get("course_about")
-            course_category = course.get("category")  # ✅ only from JSON
+            course_category = course.get("category")
+
+            if not course_name or not course_category:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Each course must have 'course_name' and 'category'."
+                )
+
             if course_category not in ["UG", "PG", "Engineering"]:
                 raise HTTPException(
                     status_code=400,
@@ -104,17 +118,20 @@ async def add_college(
                 sem6_fee=course.get("sem6_fee"),
                 sem7_fee=course.get("sem7_fee"),
                 sem8_fee=course.get("sem8_fee"),
-                category=course_category  # ✅ course-level only
+                category=course_category
             )
+
             db.add(new_course)
+
         db.commit()
 
     # -----------------------------
-    # Return full college + courses info
+    # Reload College with Courses
     # -----------------------------
     db.refresh(new_college)
-    return schemas.college_to_out(new_college)
+    new_college.courses = db.query(models.Course).filter(models.Course.college_id == new_college.id).all()
 
+    return schemas.college_to_out(new_college)
 
 @router.get("/", response_model=list[schemas.CollegeOut])
 def get_all_colleges(db: Session = Depends(get_db)):
