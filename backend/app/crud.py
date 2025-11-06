@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form,Response
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response, Request
 from typing import Optional
 import json
 from sqlalchemy.orm import Session
@@ -8,19 +8,8 @@ from . import models, schemas
 from .auth import get_db
 from .schemas import college_to_out
 
+# Single router with prefix to avoid accidental override
 router = APIRouter(prefix="/college", tags=["Colleges"])
-
-
-
-
-from fastapi import APIRouter, Form, File, UploadFile, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import Optional
-from app import models, schemas
-from app.database import get_db
-import json, requests
-
-router = APIRouter()
 
 @router.post("/", response_model=schemas.CollegeOut)
 async def add_college(
@@ -34,6 +23,15 @@ async def add_college(
     college_image_url: str = Form(None),
     db: Session = Depends(get_db),
 ):
+    # Pre-parse and validate courses JSON before creating college to avoid orphan records
+    parsed_courses: list[dict] | None = None
+    if courses:
+        try:
+            parsed_courses = json.loads(courses)
+            if not isinstance(parsed_courses, list):
+                raise HTTPException(status_code=400, detail="'courses' must be a JSON array.")
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON format for 'courses'.")
     # -----------------------------
     # Handle College Image
     # -----------------------------
@@ -52,78 +50,74 @@ async def add_college(
         except Exception:
             raise HTTPException(status_code=400, detail="Unable to fetch image from URL.")
 
-    # -----------------------------
-    # Create College Entry
-    # -----------------------------
-    new_college = models.College(
-        college_name=college_name,
-        address=address,
-        about=about,
-        price_range=price_range,
-        stream=stream,
-        college_image_data=image_data,
-        college_image_mime=image_mime
-    )
-    db.add(new_college)
-    db.commit()
-    db.refresh(new_college)
+    # Use a transaction so either college and all courses are saved, or none
+    try:
+        # Create College Entry
+        new_college = models.College(
+            college_name=college_name,
+            address=address,
+            about=about,
+            price_range=price_range,
+            stream=stream,
+            college_image_data=image_data,
+            college_image_mime=image_mime
+        )
+        db.add(new_college)
+        db.flush()  # get new_college.id without committing
 
-    # -----------------------------
-    # Handle Courses (if provided)
-    # -----------------------------
-    if courses:
-        try:
-            courses_data = json.loads(courses)
-            if not isinstance(courses_data, list):
-                raise HTTPException(status_code=400, detail="'courses' must be a JSON array.")
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Invalid JSON format for 'courses'.")
+        # Handle Courses (if provided)
+        if parsed_courses:
+            for course in parsed_courses:
+                course_name = course.get("course_name")
+                course_about = course.get("course_about")
+                course_category = course.get("category")
 
-        for course in courses_data:
-            course_name = course.get("course_name")
-            course_about = course.get("course_about")
-            course_category = course.get("category")
+                if not course_name or not course_category:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Each course must have 'course_name' and 'category'."
+                    )
 
-            if not course_name or not course_category:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Each course must have 'course_name' and 'category'."
+                if course_category not in ["UG", "PG", "Engineering"]:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid category '{course_category}' for course '{course_name}'. Must be 'UG', 'PG', or 'Engineering'."
+                    )
+
+                sem_fees = [course.get(f"sem{i}_fee") for i in range(1, 9)]
+                filled_fees = [f for f in sem_fees if f is not None]
+
+                expected_semesters = {"PG": 4, "UG": 6, "Engineering": 8}[course_category]
+                if len(filled_fees) != expected_semesters:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Course '{course_name}' must have exactly {expected_semesters} semester fees, got {len(filled_fees)}."
+                    )
+
+                new_course = models.Course(
+                    college_id=new_college.id,
+                    course_name=course_name,
+                    course_about=course_about,
+                    sem1_fee=course.get("sem1_fee"),
+                    sem2_fee=course.get("sem2_fee"),
+                    sem3_fee=course.get("sem3_fee"),
+                    sem4_fee=course.get("sem4_fee"),
+                    sem5_fee=course.get("sem5_fee"),
+                    sem6_fee=course.get("sem6_fee"),
+                    sem7_fee=course.get("sem7_fee"),
+                    sem8_fee=course.get("sem8_fee"),
+                    category=course_category
                 )
 
-            if course_category not in ["UG", "PG", "Engineering"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid category '{course_category}' for course '{course_name}'. Must be 'UG', 'PG', or 'Engineering'."
-                )
-
-            sem_fees = [course.get(f"sem{i}_fee") for i in range(1, 9)]
-            filled_fees = [f for f in sem_fees if f is not None]
-
-            expected_semesters = {"PG": 4, "UG": 6, "Engineering": 8}[course_category]
-            if len(filled_fees) != expected_semesters:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Course '{course_name}' must have exactly {expected_semesters} semester fees, got {len(filled_fees)}."
-                )
-
-            new_course = models.Course(
-                college_id=new_college.id,
-                course_name=course_name,
-                course_about=course_about,
-                sem1_fee=course.get("sem1_fee"),
-                sem2_fee=course.get("sem2_fee"),
-                sem3_fee=course.get("sem3_fee"),
-                sem4_fee=course.get("sem4_fee"),
-                sem5_fee=course.get("sem5_fee"),
-                sem6_fee=course.get("sem6_fee"),
-                sem7_fee=course.get("sem7_fee"),
-                sem8_fee=course.get("sem8_fee"),
-                category=course_category
-            )
-
-            db.add(new_course)
+                db.add(new_course)
 
         db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to add college")
 
     # -----------------------------
     # Reload College with Courses
@@ -303,7 +297,7 @@ def get_compared_colleges(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/name/{college_name}")
-def get_colleges_by_name(college_name: str, db: Session = Depends(get_db)):
+def get_colleges_by_name(college_name: str, request: Request, db: Session = Depends(get_db)):
     # Get all colleges with the same name
     colleges = db.query(models.College).filter(models.College.college_name == college_name).all()
 
@@ -323,7 +317,8 @@ def get_colleges_by_name(college_name: str, db: Session = Depends(get_db)):
             "about": college.about,
             "stream": college.stream,
             "price_range": college.price_range,
-            "college_image_url": f"http://127.0.0.1:8000/college/{college.id}/image" if college.college_image_data else None,
+            # Build absolute image URL based on current request
+            "college_image_url": str(request.url_for("get_college_image", college_id=college.id)) if college.college_image_data else None,
             "courses": [
                 {
                     "id": course.id,
