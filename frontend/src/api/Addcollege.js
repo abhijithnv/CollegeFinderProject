@@ -1,4 +1,4 @@
-import { API_CONFIG } from './config.js'
+import { API_CONFIG, fetchWithTimeout } from './config.js'
 
 /**
  * Get all colleges
@@ -8,14 +8,19 @@ export const getColleges = async () => {
   try {
     console.log('Fetching colleges...')
     
-    const response = await fetch(`${API_CONFIG.BASE_URL}/college/`, {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/college/`, {
       method: 'GET',
     })
 
     console.log('Get colleges response status:', response.status)
 
     if (!response.ok) {
-      const errorData = await response.json()
+      let errorData
+      try {
+        errorData = await response.json()
+      } catch (parseError) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`)
+      }
       console.error('Get colleges failed:', errorData)
       
       const error = new Error(errorData.detail || `Get colleges failed with status ${response.status}`)
@@ -29,6 +34,12 @@ export const getColleges = async () => {
     return data
   } catch (error) {
     console.error('Get colleges error:', error)
+    if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+      throw new Error('Request timeout: The server took too long to respond. Please try again.')
+    }
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      throw new Error('Network error: Unable to connect to the server. Please check your internet connection and try again.')
+    }
     throw error
   }
 }
@@ -42,14 +53,19 @@ export const getCollegeById = async (collegeId) => {
   try {
     console.log('Fetching college with ID:', collegeId)
     
-    const response = await fetch(`${API_CONFIG.BASE_URL}/college/${collegeId}`, {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/college/${collegeId}`, {
       method: 'GET',
     })
 
     console.log('Get college response status:', response.status)
 
     if (!response.ok) {
-      const errorData = await response.json()
+      let errorData
+      try {
+        errorData = await response.json()
+      } catch (parseError) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`)
+      }
       console.error('Get college failed:', errorData)
       
       const error = new Error(errorData.detail || `Get college failed with status ${response.status}`)
@@ -63,6 +79,12 @@ export const getCollegeById = async (collegeId) => {
     return data
   } catch (error) {
     console.error('Get college error:', error)
+    if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+      throw new Error('Request timeout: The server took too long to respond. Please try again.')
+    }
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      throw new Error('Network error: Unable to connect to the server. Please check your internet connection and try again.')
+    }
     throw error
   }
 }
@@ -115,15 +137,22 @@ export const addCollege = async (collegeData) => {
       console.log(`${key}: ${value} (type: ${typeof value})`)
     }
     
-    const response = await fetch(`${API_CONFIG.BASE_URL}/college/`, {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/college/`, {
       method: 'POST',
       body: formData, // Don't set Content-Type header, let browser set it with boundary
-    })
+    }, 90000) // 90 seconds timeout for adding college with multiple courses
 
     console.log('Add college response status:', response.status)
 
     if (!response.ok) {
-      const errorData = await response.json()
+      let errorData
+      try {
+        errorData = await response.json()
+      } catch (parseError) {
+        // If response is not JSON, create a generic error
+        throw new Error(`Server error: ${response.status} ${response.statusText}`)
+      }
+      
       console.error('Add college failed:', errorData)
       
       // Handle validation errors (422)
@@ -144,6 +173,16 @@ export const addCollege = async (collegeData) => {
         }
       }
       
+      // Handle timeout errors (504)
+      if (response.status === 504) {
+        throw new Error('Request timeout: The server took too long to process your request. Please try again with fewer courses or check your connection.')
+      }
+      
+      // Handle server errors (500)
+      if (response.status === 500) {
+        throw new Error(errorData.detail || 'Server error: Failed to add college. Please try again later.')
+      }
+      
       const error = new Error(errorData.detail || `Add college failed with status ${response.status}`)
       error.status = response.status
       error.data = errorData
@@ -155,6 +194,13 @@ export const addCollege = async (collegeData) => {
     return data
   } catch (error) {
     console.error('Add college error:', error)
+    // Handle network errors
+    if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+      throw new Error('Request timeout: Adding college with multiple courses took too long. Please try again or add courses in smaller batches.')
+    }
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      throw new Error('Network error: Unable to connect to the server. Please check your internet connection and try again.')
+    }
     throw error
   }
 }

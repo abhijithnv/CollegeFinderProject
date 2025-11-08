@@ -65,9 +65,11 @@ async def add_college(
         db.add(new_college)
         db.flush()  # get new_college.id without committing
 
-        # Handle Courses (if provided)
+        # Handle Courses (if provided) - Optimize by validating all courses first, then bulk adding
         if parsed_courses:
-            for course in parsed_courses:
+            # Validate all courses before adding any to avoid partial failures
+            course_objects = []
+            for idx, course in enumerate(parsed_courses):
                 course_name = course.get("course_name")
                 course_about = course.get("course_about")
                 course_category = course.get("category")
@@ -75,13 +77,13 @@ async def add_college(
                 if not course_name or not course_category:
                     raise HTTPException(
                         status_code=400,
-                        detail="Each course must have 'course_name' and 'category'."
+                        detail=f"Course {idx + 1}: Each course must have 'course_name' and 'category'."
                     )
 
                 if course_category not in ["UG", "PG", "Engineering"]:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Invalid category '{course_category}' for course '{course_name}'. Must be 'UG', 'PG', or 'Engineering'."
+                        detail=f"Course {idx + 1} ('{course_name}'): Invalid category '{course_category}'. Must be 'UG', 'PG', or 'Engineering'."
                     )
 
                 sem_fees = [course.get(f"sem{i}_fee") for i in range(1, 9)]
@@ -91,9 +93,10 @@ async def add_college(
                 if len(filled_fees) != expected_semesters:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Course '{course_name}' must have exactly {expected_semesters} semester fees, got {len(filled_fees)}."
+                        detail=f"Course {idx + 1} ('{course_name}'): Must have exactly {expected_semesters} semester fees, got {len(filled_fees)}."
                     )
 
+                # Create course object (but don't add to DB yet)
                 new_course = models.Course(
                     college_id=new_college.id,
                     course_name=course_name,
@@ -108,16 +111,25 @@ async def add_college(
                     sem8_fee=course.get("sem8_fee"),
                     category=course_category
                 )
-
-                db.add(new_course)
+                course_objects.append(new_course)
+            
+            # Bulk add all courses at once (more efficient)
+            db.add_all(course_objects)
 
         db.commit()
     except HTTPException:
         db.rollback()
         raise
-    except Exception:
+    except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to add college")
+        # Log the actual error for debugging
+        import traceback
+        print(f"Error adding college: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to add college: {str(e)}. Please try again or contact support if the issue persists."
+        )
 
     # -----------------------------
     # Reload College with Courses

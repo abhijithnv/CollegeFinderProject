@@ -76,14 +76,8 @@ const SignIn = () => {
       navigate('/colleges')
     } catch (error) {
       console.error('Login error:', error)
-
-      if (error.type === 'NETWORK_ERROR') {
-        setError('Network Error: Unable to connect to server.')
-      } else if (error.status === 401) {
-        setError('Invalid email or password.')
-      } else {
-        setError(error.message || 'Login failed. Please try again.')
-      }
+      // Use the error message from the API which now includes proper handling
+      setError(error.message || 'Login failed. Please try again.')
     } finally {
       setIsLoading(false)
     }
