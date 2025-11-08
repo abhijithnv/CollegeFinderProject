@@ -67,12 +67,40 @@ app.include_router(auth_router)
 app.include_router(college_router)
 
 # ----------------------------
-# Create all tables on startup
+# Create all tables on startup and run migrations
 # ----------------------------
 @app.on_event("startup")
 def on_startup():
     print("Creating all database tables (if not exist)...")
     models.Base.metadata.create_all(bind=database.engine)
+    
+    # Migrate course_about column from VARCHAR(500) to TEXT if needed
+    try:
+        from sqlalchemy import text
+        with database.engine.connect() as connection:
+            # Check current column type
+            result = connection.execute(text("""
+                SELECT data_type, character_maximum_length 
+                FROM information_schema.columns 
+                WHERE table_name = 'courses_1' 
+                AND column_name = 'course_about'
+            """))
+            row = result.fetchone()
+            if row:
+                data_type, max_length = row
+                if data_type == 'character varying' and max_length == 500:
+                    print("Migrating course_about column from VARCHAR(500) to TEXT...")
+                    connection.execute(text("""
+                        ALTER TABLE courses_1 
+                        ALTER COLUMN course_about TYPE TEXT
+                    """))
+                    connection.commit()
+                    print("✅ Migration completed: course_about column updated to TEXT")
+                elif data_type == 'text':
+                    print("✅ course_about column is already TEXT type")
+    except Exception as e:
+        print(f"⚠️  Migration check failed (non-critical): {str(e)}")
+        # Don't fail startup if migration check fails
 
 # ----------------------------
 # Root endpoint

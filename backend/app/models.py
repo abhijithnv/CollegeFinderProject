@@ -52,7 +52,7 @@ class Course(Base):
 
 
     course_name = Column(String(150), nullable=False)
-    course_about = Column(String(500), nullable=True)
+    course_about = Column(Text, nullable=True)  # Changed from String(500) to Text for longer descriptions
     category = Column(String(100), nullable=True)
 
     sem1_fee = Column(Float, nullable=True)

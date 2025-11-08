@@ -124,11 +124,20 @@ async def add_college(
         db.rollback()
         # Log the actual error for debugging
         import traceback
-        print(f"Error adding college: {str(e)}")
+        error_str = str(e)
+        print(f"Error adding college: {error_str}")
         print(traceback.format_exc())
+        
+        # Check for specific database errors
+        if "StringDataRightTruncation" in error_str or "value too long" in error_str.lower():
+            raise HTTPException(
+                status_code=400,
+                detail="Course description is too long. The database column needs to be migrated. Please contact support or try again after the migration completes."
+            )
+        
         raise HTTPException(
             status_code=500, 
-            detail=f"Failed to add college: {str(e)}. Please try again or contact support if the issue persists."
+            detail=f"Failed to add college: {error_str}. Please try again or contact support if the issue persists."
         )
 
     # -----------------------------
